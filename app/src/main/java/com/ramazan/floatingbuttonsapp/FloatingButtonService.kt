@@ -1,7 +1,11 @@
 package com.ramazan.floatingbuttonsapp
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -15,6 +19,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
@@ -27,14 +32,38 @@ class FloatingButtonService : Service() {
     private var isAdded = false
     private val uiHandler = Handler(Looper.getMainLooper())
 
-    private val API_OUTSIDE = "TRIGGER HERE"
-    private val API_INSIDE  = "TRIGGER HERE"
+    private val API_OUTSIDE = "http://131.152.154.19/api/automation/trigger?triggerId=a"
+    private val API_INSIDE  = "http://131.152.154.19/api/automation/trigger?triggerId=c"
 
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-    }
 
+        // Notification Channel für Android O+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "floating_service_channel",
+                "Floating Button Service",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+
+        val notification: Notification = NotificationCompat.Builder(this, "floating_service_channel")
+            .setContentTitle("Floating Buttons aktiv")
+            .setContentText("Der Dienst läuft im Hintergrund")
+            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setOngoing(true)
+            .build()
+
+        // WICHTIG: Seit Android 14 muss der Foreground-Service-Typ angegeben werden!
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) { // Android 14+
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(1, notification)
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!isAdded) {
@@ -91,7 +120,11 @@ class FloatingButtonService : Service() {
             addView(btnInside, buttonParams)
         }
 
-        windowManager.addView(layout, params)
+        try {
+            windowManager.addView(layout, params)
+        } catch (e: Exception) {
+            Log.e("Overlay", "Fehler beim Hinzufügen: ${e.message}")
+        }
     }
 
     private fun createRoundedDrawable(hexColor: String): GradientDrawable =
